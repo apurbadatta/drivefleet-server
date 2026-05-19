@@ -90,6 +90,19 @@ app.post('/bookings', async (req, res) => {
 
 // 
 
+app.get('/bookings', async (req, res) => {
+
+    const email = req.query.email;
+    if (!email) {
+      return res.status(400).send({ message: "User email is required!" });
+    }
+    const query = { bookedByEmail: email };
+    const result = await bookingsCollection.find(query).toArray();
+    res.send(result);
+  
+});
+
+
 // 
 
 
