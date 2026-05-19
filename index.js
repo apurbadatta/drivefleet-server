@@ -48,12 +48,28 @@ app.get('/cars/:id', async (req, res) => {
   const result = await carsCollection.findOne({
     _id: new ObjectId(req.params.id)
   });
-
   if (!result) {
     return res.status(404).send({ message: "Car not found" });
   }
-
   res.send(result);
+});
+
+
+app.post('/cars', async (req, res) => {
+    const newCar = req.body;
+    if (!newCar.carName || !newCar.pricePerDay || !newCar.carType) {
+      return res.status(400).send({ message: "Required fields are missing!" });
+    }
+    const carData = {
+      ...newCar,
+      pricePerDay: parseFloat(newCar.pricePerDay),
+      seats: parseInt(newCar.seats) || 4,
+      isAvailable: true,
+      createdAt: new Date()
+    };
+    
+    const result = await carsCollection.insertOne(carData);
+    res.status(201).send(result);
 });
 
 
