@@ -4,7 +4,7 @@ dns.setServers(["8.8.8.8", "8.8.4.4"]);
 const express = require('express')
 const cors = require('cors');
 const dotenv=require('dotenv')
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 dotenv.config()
 const app = express()
 const port = process.env.SERVER_PORT ||8000
@@ -31,21 +31,46 @@ async function run() {
     console.log("Successfully connected to MongoDB!");
 
     //  API (Explore Cars Page )
-    app.get('/cars', async (req, res) => {
-      try {
-        const cursor = carsCollection.find({});
-        const result = await cursor.toArray();
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: "Data fetch problem" });
-      }
-    });
+
+app.get('/cars', async (req, res) => {
+  
+    const limit = parseInt(req.query.limit); 
+    let cursor = carsCollection.find({});
+    if (limit) {
+      cursor = cursor.limit(limit);
+    }
+    const result = await cursor.toArray();
+    res.send(result);
+  
+});
+
+app.get('/cars/:id', async (req, res) => {
+  const result = await carsCollection.findOne({
+    _id: new ObjectId(req.params.id)
+  });
+
+  if (!result) {
+    return res.status(404).send({ message: "Car not found" });
+  }
+
+  res.send(result);
+});
+
+
+
+
+
+
 
   } catch (error) {
     console.error("Database connection error:", error);
   }
   
+
 }
+
+
+
 run().catch(console.dir);
 
 app.get('/', (req, res) => {
