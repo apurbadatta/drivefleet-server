@@ -72,27 +72,39 @@ app.post('/cars', async (req, res) => {
     res.status(201).send(result);
 });
 
+const bookingsCollection = database.collection("bookings");
 
 
+app.post('/bookings', async (req, res) => {
+  try {
+    const bookingInfo = req.body;
+    if (!bookingInfo.carId || !bookingInfo.bookedByEmail) {
+      return res.status(400).send({ message: "Missing required booking information!" });
+    }
+    const result = await bookingsCollection.insertOne(bookingInfo);
+    res.status(201).send({ success: true, message: "Booking saved!", result });
+  } catch (error) {
+    res.status(500).send({ message: "Server Error", error: error.message });
+  }
+});
 
+// 
+
+// 
 
 
 
   } catch (error) {
-    console.error("Database connection error:", error);
+    console.error("MongoDB connection failed:", error);
   }
-  
-
 }
-
-
 
 run().catch(console.dir);
 
 app.get('/', (req, res) => {
-  res.send('DriveFleet Server is running');
-});
+  res.send('DriveFleet Server is running...')
+})
 
 app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
-});
+  console.log(`DriveFleet listening on port ${port}`)
+})
