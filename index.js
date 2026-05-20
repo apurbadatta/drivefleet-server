@@ -88,7 +88,7 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/cars", async (req, res) => {
+    app.post("/cars",verifyToken, async (req, res) => {
       const newCar = req.body;
       if (!newCar.carName || !newCar.pricePerDay || !newCar.carType) {
         return res
@@ -109,7 +109,7 @@ async function run() {
 
     const bookingsCollection = database.collection("bookings");
 
-    app.post("/bookings", async (req, res) => {
+    app.post("/bookings", verifyToken, async (req, res) => {
       try {
         const bookingInfo = req.body;
         if (!bookingInfo.carId || !bookingInfo.bookedByEmail) {
@@ -139,7 +139,7 @@ async function run() {
     });
 
     //
-    app.delete("/bookings/:id", async (req, res) => {
+    app.delete("/bookings/:id", verifyToken ,async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await bookingsCollection.deleteOne(query);
