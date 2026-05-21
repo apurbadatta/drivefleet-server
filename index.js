@@ -10,7 +10,16 @@ dotenv.config();
 const app = express();
 const port = process.env.SERVER_PORT || 8000;
 const uri = process.env.MONGODB_URI;
-app.use(cors());
+app.use(cors({
+  origin: [
+    "https://drive-fleet-sable.vercel.app",
+    "http://localhost:3000"
+  ],
+  credentials: true
+}));
+
+
+
 app.use(express.json());
 
 const client = new MongoClient(uri, {
