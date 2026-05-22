@@ -6,19 +6,19 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
+
 dotenv.config();
+
 const app = express();
 const port = process.env.SERVER_PORT || 8000;
 const uri = process.env.MONGODB_URI;
-app.use(cors({
-  origin: [
-    "https://drive-fleet-sable.vercel.app",
-    "http://localhost:3000"
-  ],
-  credentials: true
-}));
 
-
+app.use(
+  cors({
+    origin: ["https://drive-fleet-sable.vercel.app", "http://localhost:3000"],
+    credentials: true,
+  }),
+);
 
 app.use(express.json());
 
@@ -30,9 +30,10 @@ const client = new MongoClient(uri, {
   },
 });
 
-//middleware
-
-const JWKS = createRemoteJWKSet(new URL(`${process.env.CLIENT_URL}/api/auth/jwks`));
+// middleware
+const JWKS = createRemoteJWKSet(
+  new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
+);
 
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -53,11 +54,7 @@ const verifyToken = async (req, res, next) => {
 
   try {
     const { payload } = await jwtVerify(token, JWKS);
-
-    // console.log(payload);
-
     req.user = payload;
-
     next();
   } catch (error) {
     console.log(error);
@@ -71,18 +68,22 @@ const verifyToken = async (req, res, next) => {
 async function run() {
   try {
     const database = client.db("drivefleet_db");
+
     const carsCollection = database.collection("cars");
+    const bookingsCollection = database.collection("bookings");
 
     console.log("Successfully connected to MongoDB!");
 
-    //  API (Explore Cars Page )
-
+    // Explore Cars
     app.get("/cars", async (req, res) => {
       const limit = parseInt(req.query.limit);
+
       let cursor = carsCollection.find({});
+
       if (limit) {
         cursor = cursor.limit(limit);
       }
+
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -91,71 +92,131 @@ async function run() {
       const result = await carsCollection.findOne({
         _id: new ObjectId(req.params.id),
       });
+
       if (!result) {
-        return res.status(404).send({ message: "Car not found" });
+        return res.status(404).send({
+          message: "Car not found",
+        });
       }
+
       res.send(result);
     });
 
-    app.post("/cars",verifyToken, async (req, res) => {
+    // Add Car
+    app.post("/cars", verifyToken, async (req, res) => {
       const newCar = req.body;
+
       if (!newCar.carName || !newCar.pricePerDay || !newCar.carType) {
-        return res
-          .status(400)
-          .send({ message: "Required fields are missing!" });
+        return res.status(400).send({
+          message: "Required fields are missing!",
+        });
       }
+
       const carData = {
         ...newCar,
         pricePerDay: parseFloat(newCar.pricePerDay),
         seats: parseInt(newCar.seats) || 4,
+        booking_count: 0,
         isAvailable: true,
         createdAt: new Date(),
       };
 
       const result = await carsCollection.insertOne(carData);
+
       res.status(201).send(result);
     });
 
-    const bookingsCollection = database.collection("bookings");
-
+    // Create Booking + increase booking_count
     app.post("/bookings", verifyToken, async (req, res) => {
       try {
         const bookingInfo = req.body;
+
         if (!bookingInfo.carId || !bookingInfo.bookedByEmail) {
-          return res
-            .status(400)
-            .send({ message: "Missing required booking information!" });
+          return res.status(400).send({
+            message: "Missing required booking information!",
+          });
         }
+
         const result = await bookingsCollection.insertOne(bookingInfo);
-        res
-          .status(201)
-          .send({ success: true, message: "Booking saved!", result });
+
+        await carsCollection.updateOne(
+          { _id: new ObjectId(bookingInfo.carId) },
+          {
+            $inc: {
+              booking_count: 1,
+            },
+          },
+        );
+
+        res.status(201).send({
+          success: true,
+          message: "Booking saved!",
+          result,
+        });
       } catch (error) {
-        res.status(500).send({ message: "Server Error", error: error.message });
+        res.status(500).send({
+          message: "Server Error",
+          error: error.message,
+        });
       }
     });
 
-    //
-
+    // My bookings
     app.get("/bookings", async (req, res) => {
       const email = req.query.email;
+
       if (!email) {
-        return res.status(400).send({ message: "User email is required!" });
+        return res.status(400).send({
+          message: "User email is required!",
+        });
       }
-      const query = { bookedByEmail: email };
+
+      const query = {
+        bookedByEmail: email,
+      };
+
       const result = await bookingsCollection.find(query).toArray();
+
       res.send(result);
     });
 
-    //
-    app.delete("/bookings/:id", verifyToken ,async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await bookingsCollection.deleteOne(query);
-      if (result.deletedCount === 1) {
-        res.send({ success: true, message: "Booking cancelled successfully!" });
-      } else {
-        res.status(404).send({ message: "No booking found with this ID" });
+    // Delete booking + decrease booking_count
+    app.delete("/bookings/:id", verifyToken, async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        const booking = await bookingsCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!booking) {
+          return res.status(404).send({
+            message: "No booking found with this ID",
+          });
+        }
+
+        await bookingsCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        await carsCollection.updateOne(
+          { _id: new ObjectId(booking.carId) },
+          {
+            $inc: {
+              booking_count: -1,
+            },
+          },
+        );
+
+        res.send({
+          success: true,
+          message: "Booking cancelled successfully!",
+        });
+      } catch (error) {
+        res.status(500).send({
+          message: "Server Error",
+          error: error.message,
+        });
       }
     });
   } catch (error) {
